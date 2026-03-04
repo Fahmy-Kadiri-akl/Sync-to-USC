@@ -34,8 +34,8 @@ Akeyless does not natively support folder/path-level sync to a USC. Sync must be
   public_key_file_path = ''
   access_id = 'p-xxxxxx'
   access_type = 'access_key'
-  access_key = 'xxxxxxxxxxxxxxxxxxxxxxx='```
-  
+  access_key = 'xxxxxxxxxxxxxxxxxxxxxxx='
+```  
 ---
 
 ## Usage
