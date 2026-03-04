@@ -1,0 +1,24 @@
+# Akeyless Folder → USC Sync Configuration
+#
+# Copy this file and customize:
+#   cp sync-folder-to-usc.conf.example sync.conf
+#   ./sync-folder-to-usc.sh --config sync.conf
+#
+
+# Akeyless folder path containing secrets to sync
+FOLDER=/2-Static_Secrets/folder-sync-test
+
+# Universal Secret Connector name/path
+USC_NAME=/9-USC/AWS-TEST-Folder-Sync
+
+# Secret types to sync (comma-separated: static-secret, rotated-secret)
+TYPES=static-secret
+
+# Recurse into subfolders (true/false)
+RECURSIVE=true
+
+# Prefix for remote secret names (leave empty for no prefix)
+REMOTE_PREFIX=
+
+# Preview mode — set to true to see what would sync without making changes
+DRY_RUN=false
