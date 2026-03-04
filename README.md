@@ -1,4 +1,4 @@
-# Akeyless Folder-to-USC Sync                                                                                                                                                                        
+# Akeyless Folder-to-USC Sync
 
 Sync all static and/or rotated secrets under an Akeyless folder path to a Universal Secret Connector (USC) — such as AWS Secrets Manager — with a single command. Includes drift detection to identify when remote values have been changed outside of Akeyless.
 
@@ -18,24 +18,12 @@ Akeyless does not natively support folder/path-level sync to a USC. Sync must be
 ## Prerequisites
 
 - **Akeyless CLI** installed and authenticated (`akeyless configure` or `akeyless auth`)
+- **Gateway URL** configured in the CLI profile (`akeyless configure --gateway-url <url>`) — required for drift detection via `usc get`
 - **USC** already created and linked to a target (e.g., AWS Secrets Manager via an AWS Target)
 - **Permissions**: Read access on the secrets, Read/Update on the USC, and Read on the associated target
 - **jq** installed for JSON parsing
-- **Gateway** accessible from the machine running the script
-- Gateway URL must be provided inside the akeyless CLI profile
+- **bash 4+** (uses associative arrays)
 
-```(.venv) me@titan:~/.akeyless/profiles$ cat default.toml 
-["default"]
-  cert_issuer_name = ''
-  legacy_signing_alg = 'false'
-  default_location_prefix = ''
-  gateway_url = 'https://my-gateway-url-port-8000'
-  cert_username = ''
-  public_key_file_path = ''
-  access_id = 'p-xxxxxx'
-  access_type = 'access_key'
-  access_key = 'xxxxxxxxxxxxxxxxxxxxxxx='
-```  
 ---
 
 ## Usage
@@ -122,9 +110,11 @@ REMOTE_PREFIX=
 # Preview mode
 DRY_RUN=false
 
-# Drift detection mode
+# Drift detection mode (requires gateway URL configured in CLI profile)
 CHECK_DRIFT=false
 ```
+
+> **Note:** CLI arguments take precedence over config file values. For example, `--dry-run` on the command line overrides `DRY_RUN=false` in the config file.
 
 ---
 
@@ -141,6 +131,9 @@ CHECK_DRIFT=false
 | `--dry-run` | Preview without making changes | `false` |
 | `--check-drift` | Compare values between Akeyless and remote | `false` |
 | `--cli PATH` | Path to akeyless CLI binary | `akeyless` |
+| `-h`, `--help` | Show usage and exit | |
+
+You can also set `AKEYLESS_CLI` as an environment variable instead of using `--cli`.
 
 ---
 
@@ -208,18 +201,22 @@ This makes the script CI/CD-friendly — use the exit code in pipelines to gate 
 
 Listing static-secret secrets under /2-Static_Secrets/folder-sync-test...
 
-Found 10 secret(s) to sync.
+Found 11 secret(s) to sync.
 
-[SYNC]    /2-Static_Secrets/folder-sync-test/api-key-stripe         OK
-[SYNC]    /2-Static_Secrets/folder-sync-test/db-password            OK
-[SYNC]    /2-Static_Secrets/folder-sync-test/redis-auth-token       OK
+[RE-SYNC] /2-Static_Secrets/folder-sync-test/api-key-stripe       OK
+[RE-SYNC] /2-Static_Secrets/folder-sync-test/db-password          OK
+[SYNC   ] /2-Static_Secrets/folder-sync-test/new-secret           OK
+[RE-SYNC] /2-Static_Secrets/folder-sync-test/redis-auth-token     OK
 ...
 
 ══════════════════════════════════════════════════
-  Total: 10  |  OK: 10  |  Failed: 0
+  Total: 11  |  OK: 11  |  Failed: 0
   Folder: /2-Static_Secrets/folder-sync-test  →  USC: /9-USC/AWS-TEST-Folder-Sync
 ══════════════════════════════════════════════════
 ```
+
+- `SYNC` — new association created and value pushed to remote
+- `RE-SYNC` — existing association found, value pushed again to remote
 
 ### Drift Check
 
