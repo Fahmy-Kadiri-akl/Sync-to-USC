@@ -22,7 +22,19 @@ Akeyless does not natively support folder/path-level sync to a USC. Sync must be
 - **Permissions**: Read access on the secrets, Read/Update on the USC, and Read on the associated target
 - **jq** installed for JSON parsing
 - **Gateway** accessible from the machine running the script
-
+- Gateway URL must be provided inside the akeyless CLI profile
+- ```(.venv) me@titan:~/.akeyless/profiles$ cat default.toml 
+["default"]
+  cert_issuer_name = ''
+  legacy_signing_alg = 'false'
+  default_location_prefix = ''
+  gateway_url = 'https://my-gateway-url-port-8000'
+  cert_username = ''
+  public_key_file_path = ''
+  access_id = 'p-xxxxxx'
+  access_type = 'access_key'
+  access_key = 'xxxxxxxxxxxxxxxxxxxxxxx='```
+  
 ---
 
 ## Usage
