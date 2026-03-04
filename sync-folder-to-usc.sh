@@ -5,58 +5,97 @@ set -euo pipefail
 
 AKEYLESS_CLI="${AKEYLESS_CLI:-akeyless}" FOLDER="" USC_NAME="" DRY_RUN=false
 TYPES="static-secret" RECURSIVE=true REMOTE_PREFIX="" CONFIG_FILE="" CHECK_DRIFT=false
+declare -A _CLI_SET=()  # Track CLI-provided values
 
 die() { echo "Error: $1" >&2; exit 1; }
 
 # ── Parse arguments ──
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --folder)        FOLDER="$2"; shift 2 ;;
-    --usc)           USC_NAME="$2"; shift 2 ;;
+    --folder)        FOLDER="$2"; _CLI_SET[FOLDER]=1; shift 2 ;;
+    --usc)           USC_NAME="$2"; _CLI_SET[USC_NAME]=1; shift 2 ;;
     --config)        CONFIG_FILE="$2"; shift 2 ;;
-    --types)         TYPES="$2"; shift 2 ;;
-    --recursive)     RECURSIVE="$2"; shift 2 ;;
-    --remote-prefix) REMOTE_PREFIX="$2"; shift 2 ;;
-    --dry-run)       DRY_RUN=true; shift ;;
-    --check-drift)   CHECK_DRIFT=true; shift ;;
+    --types)         TYPES="$2"; _CLI_SET[TYPES]=1; shift 2 ;;
+    --recursive)     RECURSIVE="$2"; _CLI_SET[RECURSIVE]=1; shift 2 ;;
+    --remote-prefix) REMOTE_PREFIX="$2"; _CLI_SET[REMOTE_PREFIX]=1; shift 2 ;;
+    --dry-run)       DRY_RUN=true; _CLI_SET[DRY_RUN]=1; shift ;;
+    --check-drift)   CHECK_DRIFT=true; _CLI_SET[CHECK_DRIFT]=1; shift ;;
     --cli)           AKEYLESS_CLI="$2"; shift 2 ;;
     -h|--help)       sed -n '2,3p' "$0"; exit 0 ;;
     *) die "Unknown option: $1" ;;
   esac
 done
 
-# ── Load config file ──
+# ── Load config file (CLI args take precedence) ──
 if [[ -n "$CONFIG_FILE" ]]; then
   [[ -f "$CONFIG_FILE" ]] || die "Config file not found: $CONFIG_FILE"
   while IFS='=' read -r key value; do
     [[ -z "$key" || "$key" =~ ^[[:space:]]*# ]] && continue
     key=$(echo "$key" | xargs); value=$(echo "$value" | xargs)
     case "$key" in
-      FOLDER|USC_NAME|TYPES|RECURSIVE|REMOTE_PREFIX|DRY_RUN|CHECK_DRIFT) printf -v "$key" '%s' "$value" ;;
+      FOLDER|USC_NAME|TYPES|RECURSIVE|REMOTE_PREFIX|DRY_RUN|CHECK_DRIFT)
+        [[ -z "${_CLI_SET[$key]+x}" ]] && printf -v "$key" '%s' "$value" ;;
     esac
   done < "$CONFIG_FILE"
 fi
 
 # ── Interactive prompts if values missing ──
+if [[ -z "$FOLDER" || -z "$USC_NAME" ]]; then
+  [[ -t 0 ]] || die "--folder and --usc are required in non-interactive mode. Run with -h for help."
+fi
+
+pick_from_list() {
+  local prompt="$1" ; shift
+  local items=("$@")
+  local i
+  for i in "${!items[@]}"; do
+    echo "  $((i + 1))) ${items[$i]}" >&2
+  done
+  echo "" >&2
+  while true; do
+    read -rp "${prompt} (number or path): " choice </dev/tty
+    if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#items[@]} )); then
+      echo "${items[$((choice - 1))]}"
+      return
+    elif [[ -n "$choice" ]]; then
+      echo "$choice"
+      return
+    fi
+    echo "Invalid selection. Try again." >&2
+  done
+}
+
 if [[ -z "$FOLDER" ]]; then
-  echo "Available folders:"
-  "$AKEYLESS_CLI" list-items --path '/' --json true --minimal-view true 2>/dev/null \
-    | jq -r '[.items[]? | select(.item_type != "USC") | .item_name | split("/")[1]] | unique | .[]' 2>/dev/null \
-    | sort | sed 's/^/  \//'
-  read -rp $'\nEnter the Akeyless folder path to sync: ' FOLDER
+  echo "Discovering folders..."
+  mapfile -t FOLDERS < <("$AKEYLESS_CLI" list-items --path '/' --json true 2>/dev/null \
+    | jq -r '.folders[]?' 2>/dev/null | sort)
+  if [[ ${#FOLDERS[@]} -eq 0 ]]; then
+    read -rp "No folders discovered. Enter the Akeyless folder path manually: " FOLDER </dev/tty
+  else
+    echo -e "\nAvailable folders:"
+    FOLDER=$(pick_from_list "Select folder" "${FOLDERS[@]}")
+  fi
 fi
 
 if [[ -z "$USC_NAME" ]]; then
-  echo -e "\nAvailable USCs:"
-  "$AKEYLESS_CLI" list-items --path '/' --json true --minimal-view true 2>/dev/null \
-    | jq -r '.items[]? | select(.item_type == "USC") | .item_name' 2>/dev/null \
-    | sort | sed 's/^/  /'
-  read -rp $'\nEnter the USC name to sync to: ' USC_NAME
+  echo -e "\nDiscovering USCs..."
+  mapfile -t USCS < <(
+    for f in $("$AKEYLESS_CLI" list-items --path '/' --json true 2>/dev/null | jq -r '.folders[]?' 2>/dev/null); do
+      "$AKEYLESS_CLI" list-items --path "$f" --json true --minimal-view true 2>/dev/null \
+        | jq -r '.items[]? | select(.item_type == "USC") | .item_name' 2>/dev/null
+    done | sort
+  )
+  if [[ ${#USCS[@]} -eq 0 ]]; then
+    read -rp "No USCs discovered. Enter the USC name manually: " USC_NAME </dev/tty
+  else
+    echo -e "\nAvailable USCs:"
+    USC_NAME=$(pick_from_list "Select USC" "${USCS[@]}")
+  fi
 fi
 
 [[ -n "$FOLDER" && -n "$USC_NAME" ]] || die "folder and USC name are required."
 
-if [[ -t 0 && "$DRY_RUN" == "false" ]]; then
+if [[ -t 0 && "$DRY_RUN" == "false" && "$CHECK_DRIFT" == "false" ]]; then
   read -rp "Include rotated secrets? (y/N): " ans
   [[ "$ans" =~ ^[Yy] ]] && TYPES="static-secret,rotated-secret"
   read -rp "Dry run first? (Y/n): " ans
