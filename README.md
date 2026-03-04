@@ -23,7 +23,8 @@ Akeyless does not natively support folder/path-level sync to a USC. Sync must be
 - **jq** installed for JSON parsing
 - **Gateway** accessible from the machine running the script
 - Gateway URL must be provided inside the akeyless CLI profile
-- ```(.venv) me@titan:~/.akeyless/profiles$ cat default.toml 
+
+```(.venv) me@titan:~/.akeyless/profiles$ cat default.toml 
 ["default"]
   cert_issuer_name = ''
   legacy_signing_alg = 'false'
