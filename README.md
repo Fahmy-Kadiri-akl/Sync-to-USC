@@ -22,7 +22,6 @@ Akeyless does not natively support folder/path-level sync to a USC. Sync must be
 - **USC** already created and linked to a target (e.g., AWS Secrets Manager via an AWS Target)
 - **Permissions**: Read access on the secrets, Read/Update on the USC, and Read on the associated target
 - **jq** installed for JSON parsing
-- **bash 4+** (uses associative arrays)
 
 ---
 
